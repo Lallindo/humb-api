@@ -2,7 +2,7 @@ from sqlalchemy import Column, and_
 from sqlalchemy.orm import Query
 from pydantic import BaseModel
 from typing import Any, Callable, Dict, Set, Tuple
-from .config import get_config
+import toml
 
 """
 Dicionário com todos operadores que serão usados no SQL pelo SQLAlchemy 
@@ -65,15 +65,15 @@ def apply_filters_from_model(
         return db_query.filter(and_(*conditions))
     return db_query
 
-def get_conn_string(dbms_type: str = 'mysql') -> dict[str, str] | str:
+def get_conn_string(dbms_type: str = 'mysql') -> str:
     """
         Função que constrói a string de conexão usando os dados em 'pyconfig.toml'
     """
-    config = get_config().database_conn
+    config = toml.load("pyconfig.toml")["database_conn"]
     if dbms_type == 'mysql':
         driver = config['driver'][1]
     elif dbms_type == 'postgresql':
         driver = config['driver'][0]  
     else:
-        return {"erro": "Driver não identificado"}
+        raise Exception()
     return f"{driver}://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['db_name']}"

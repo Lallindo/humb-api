@@ -1,5 +1,5 @@
-from sqlalchemy import String, ForeignKey, DECIMAL, Enum, Date, DateTime, create_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+from sqlalchemy import String, ForeignKey, DECIMAL, Enum, Date, DateTime, create_engine, ARRAY
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, validates
 from sqlalchemy.ext.associationproxy import association_proxy
 from typing import get_args, Literal, List, Optional
 import datetime
@@ -23,8 +23,15 @@ class ProdutosDB(Base):
     estoque_produto: Mapped[int] = mapped_column()
     ativo_produto: Mapped[bool] = mapped_column(default=True)
     
-    imagens: Mapped["ImagensDB"] = relationship()
+    imagens: Mapped[List["ImagensDB"]] = relationship("ImagensDB", back_populates="produto")
+    
     categorias: Mapped["CategoriasDB"] = relationship(secondary="em_categoria", back_populates="produtos")
+    
+    @validates("imagens")
+    def convert(self, _, value) -> "ImagensDB":
+        if value and isinstance(value, dict):
+            return ImagensDB(**value)
+        return value
     
 class ImagensDB(Base):
     __tablename__ = "imagens"
@@ -33,13 +40,15 @@ class ImagensDB(Base):
     url_img: Mapped[str] = mapped_column(String(1000))
     id_produto_fk: Mapped[int] = mapped_column(ForeignKey("produtos.id_produto"))
     
+    produto: Mapped["ProdutosDB"] = relationship("ProdutosDB", back_populates="imagens")
+    
 class CategoriasDB(Base):
     __tablename__ = "categorias"
     
     id_categoria: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     descritivo_categoria: Mapped[str] = mapped_column(String(100))
     
-    produtos: Mapped["ProdutosDB"] = relationship(secondary="em_categoria", back_populates="categorias")
+    produtos: Mapped["ProdutosDB"] = relationship("ProdutosDB", secondary="em_categoria", back_populates="categorias")
     
 class EmCategoriaDB(Base):
     __tablename__ = "em_categoria"

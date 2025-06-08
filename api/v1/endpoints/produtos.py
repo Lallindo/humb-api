@@ -37,14 +37,10 @@ def get_produtos(
 
 @router.post('/')
 def post_produtos(
-    body: Union[List[produtos.ProdutoCreate], produtos.ProdutoCreate],
+    body: produtos.ProdutoCreate,
     db: Session = DbSessionDep
 ):
-    if isinstance(body, list):
-        for categoria in body:
-            db.add(ProdutosDB(**categoria.model_dump()))
-    else:
-        db.add(ProdutosDB(**body))
+    db.add(ProdutosDB(**body.model_dump()))
     db.commit()
 
 @router.patch('/', response_model=produtos.ProdutoResponse)
