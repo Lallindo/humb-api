@@ -18,7 +18,7 @@ class ProdutosDB(Base):
     id_produto: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     descritivo_produto: Mapped[str] = mapped_column(String(300))
     descricao_produto: Mapped[str] = mapped_column(String(2000))
-    preco_produto: Mapped[DECIMAL] = mapped_column(DECIMAL(scale=10, precision=2))
+    preco_produto: Mapped[DECIMAL] = mapped_column(DECIMAL(scale=2, precision=10))
     desconto_produto: Mapped[int] = mapped_column()
     estoque_produto: Mapped[int] = mapped_column()
     ativo_produto: Mapped[bool] = mapped_column(default=True)
@@ -113,6 +113,8 @@ class UsuariosDB(Base):
     telefones: Mapped[List["TelefonesDB"]] = relationship()
     enderecos: Mapped[List["EnderecosDB"]] = relationship()
 
+    pedidos: Mapped[List["PedidosDB"]] = relationship()
+
     @validates("telefones")
     def convert(self, _, value) -> "TelefonesDB":
         if value and isinstance(value, dict):
@@ -144,6 +146,7 @@ class EnderecosDB(Base):
     cidade_endereco: Mapped[str] = mapped_column(String(100))
     descricao_endereco: Mapped[str] = mapped_column(String(1000))
     uf_endereco: Mapped[UnidadesFederativasEnum] = mapped_column(Enum(UnidadesFederativasEnum))
+    padrao_endereco: Mapped[bool] = mapped_column(default=True)
     
 # -- Fim Usuários -- #
 
@@ -158,6 +161,13 @@ class TiposPagamentoEnum(enum.StrEnum):
     TRANSF_BANC = enum.auto()
     NENHUM = enum.auto()
 
+class StatusPedidoEnum(enum.StrEnum):
+    EM_CARRINHO = enum.auto()
+    PROCESSANDO_PAGAMENTO = enum.auto()
+    PROCESSANDO_PEDIDO = enum.auto()
+    A_CAMINHO = enum.auto()
+    ENTREGUE = enum.auto()
+
 class PedidosDB(Base):
     __tablename__ = "pedidos"
     
@@ -165,10 +175,17 @@ class PedidosDB(Base):
     id_usuario_fk: Mapped[int] = mapped_column(ForeignKey("usuarios.id_usuario"))
     data_criacao_pedido: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now())
     data_ultima_alteracao_pedido: Mapped[datetime.datetime] = mapped_column(default=datetime.datetime.now())
-    data_finalizacao_pedido: Mapped[Optional[datetime.datetime]] = mapped_column()
-    tipo_pagamento: Mapped[Optional[TiposPagamentoEnum]] = mapped_column(Enum(TiposPagamentoEnum))
+    data_finalizacao_pedido: Mapped[Optional[datetime.datetime]] = mapped_column(default=None, nullable=True)
+    tipo_pagamento: Mapped[Optional[TiposPagamentoEnum]] = mapped_column(Enum(TiposPagamentoEnum), default=TiposPagamentoEnum.NENHUM)
+    status_pedido: Mapped[Optional[StatusPedidoEnum]] = mapped_column(Enum(StatusPedidoEnum), default=StatusPedidoEnum.EM_CARRINHO)
     
-    produtos_em_pedido: Mapped[List["EmPedidoDB"]] = relationship()
+    produtos_em_pedido: Mapped[List["EmPedidoDB"]] = relationship(back_populates="pedido", cascade="all, delete-orphan")
+
+    @validates("produtos_em_pedido")
+    def convert(self, _, value) -> "EmPedidoDB":
+        if value and isinstance(value, dict):
+            return EmPedidoDB(**value)
+        return value 
     
 class EmPedidoDB(Base):
     __tablename__ = "em_pedido"
@@ -177,5 +194,7 @@ class EmPedidoDB(Base):
     id_pedido_fk: Mapped[int] = mapped_column(ForeignKey("pedidos.id_pedido"))
     id_produto_fk: Mapped[int] = mapped_column(ForeignKey("produtos.id_produto"))
     quant_produto_em_pedido: Mapped[int] = mapped_column()
+
+    pedido: Mapped["PedidosDB"] = relationship(back_populates="produtos_em_pedido")
 
 # -- Fim Pedidos -- #

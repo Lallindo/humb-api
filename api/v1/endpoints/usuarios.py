@@ -3,8 +3,8 @@ from database import DbSessionDep, Session
 from typing import Dict, Tuple, List, Union, Annotated, Set
 
 from core import apply_filters_from_model, get_pagination_response, PaginatedResponse, DEFAULT_NON_FILTER_FIELDS, verify_hash
-from models.schemas import usuarios, telefones, enderecos 
-from models.db_models import UsuariosDB, TelefonesDB, EnderecosDB
+from models.schemas import usuarios, telefones, enderecos, pedidos
+from models.db_models import UsuariosDB, TelefonesDB, EnderecosDB, PedidosDB
 
 router = APIRouter(prefix="/usuarios", tags=["Usuários"])
 
@@ -36,7 +36,7 @@ def get_usuarios(
 
 @router.post('/')
 def post_usuarios(
-    body: Union[List[usuarios.UsuarioCreate], usuarios.UsuarioCreate],
+    body: usuarios.UsuarioCreate,
     db: Session = DbSessionDep
 ):
     if isinstance(body, list):
@@ -70,17 +70,35 @@ def delete_categorias(
 
 @router.post('/{id_usuario}/add-endereco')
 def add_endereco_usuario(
-    id_usuario: Annotated[int, Path(description="ID do usuário que terá o endereço")],
+    id_usuario: Annotated[int, Path(description="Id do usuário que terá o endereço")],
     body: enderecos.EnderecoCreate,
     db: Session = DbSessionDep
 ):
-    stmt = EnderecosDB(id_usuario_fk = id_usuario, **body.model_dump())
+    stmt = db.get(UsuariosDB, id_usuario)
+    if len(stmt.enderecos) == 0:
+        stmt = EnderecosDB(id_usuario_fk = id_usuario, padrao_endereco = True, **body.model_dump())
+    else:
+        stmt = EnderecosDB(id_usuario_fk = id_usuario, padrao_endereco = False, **body.model_dump())
     db.add(stmt)
+    db.commit()
+
+@router.post('/{id_usuario}/{id_endereco}')
+def alter_endereco_padrao(
+    id_usuario: Annotated[int, Path(description="Id do usuário")],
+    id_endereco: Annotated[int, Path(description="Id do endereço")],
+    db: Session = DbSessionDep
+):
+    stmt = db.get(UsuariosDB, id_usuario)
+    for endereco in stmt.enderecos:
+        if endereco.id_endereco == id_endereco:
+            endereco.padrao_endereco = True
+        else:
+            endereco.padrao_endereco = False
     db.commit()
 
 @router.post('/{id_usuario}/add-telefone')
 def add_telefones_usuario(
-    id_usuario: Annotated[int, Path(description="ID do usuário que terá o endereço")],
+    id_usuario: Annotated[int, Path(description="Id do usuário que terá o endereço")],
     body: telefones.TelefoneCreate,
     db: Session = DbSessionDep
 ):
