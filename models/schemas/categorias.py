@@ -5,10 +5,13 @@ from core import QueryMeta
 class CategoriaBase(Base):
     descritivo_categoria: Optional[str] = Field(default="", description="Nome da categoria", examples=["nome_categoria"])
     
-class CategoriaResponse(CategoriaBase):
+class CategoriaId(Base):
     id_categoria: Optional[int] = Field(default=None, description="Id da categoria")
+
+class CategoriaResponse(CategoriaBase, CategoriaId):
+    pass
     
-class CategoriaQuery(QueryMeta, CategoriaResponse):
+class CategoriaQuery(QueryMeta, CategoriaResponse, CategoriaId):
     pass
 
 class CategoriaCreate(CategoriaBase):

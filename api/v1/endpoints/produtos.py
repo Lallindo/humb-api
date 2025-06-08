@@ -4,7 +4,7 @@ from typing import Dict, Tuple, List, Union, Annotated, Set
 
 from core import apply_filters_from_model, get_pagination_response, PaginatedResponse, DEFAULT_NON_FILTER_FIELDS
 from models.schemas import produtos
-from models.db_models import ProdutosDB
+from models.db_models import ProdutosDB, EmCategoriaDB
 
 router = APIRouter(prefix="/produtos", tags=["Produtos"])
 
@@ -63,4 +63,14 @@ def delete_categorias(
 ):
     stmt = db.get(ProdutosDB, id_categoria)
     db.delete(stmt)
+    db.commit()
+
+@router.post('/{id_produto}/{id_categoria}')
+def add_categoria_produto(
+    id_produto: Annotated[int, Path(description="ID do produto")],
+    id_categoria: Annotated[int, Path(description="ID da categoria")],
+    db: Session = DbSessionDep
+):
+    stmt = EmCategoriaDB(id_prod_fk = id_produto, id_categoria_fk = id_categoria)
+    db.add(stmt)
     db.commit()

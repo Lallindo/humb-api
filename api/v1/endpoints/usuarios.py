@@ -2,59 +2,58 @@ from fastapi import APIRouter, Query, Path
 from database import DbSessionDep, Session
 from typing import Dict, Tuple, List, Union, Annotated, Set
 
-from core import apply_filters_from_model, get_pagination_response, PaginatedResponse, DEFAULT_NON_FILTER_FIELDS
-from models.schemas import usuarios
-from models.db_models import UsuariosDB
+from core import apply_filters_from_model, get_pagination_response, PaginatedResponse, DEFAULT_NON_FILTER_FIELDS, verify_hash
+from models.schemas import usuarios, telefones, enderecos 
+from models.db_models import UsuariosDB, TelefonesDB, EnderecosDB
 
-router = APIRouter(prefix="/produtos", tags=["Produtos"])
+router = APIRouter(prefix="/usuarios", tags=["Usuários"])
 
-PRODUTOS_FILTER_CONFIG: Dict[str, Tuple[str, str]] = {
-    "id_produto": ("id_produto", "eq"),
-    "descritivo_produto": ("descritivo_produto", "contains"),
-    "descricao_produto": ("descricao_produto", "contains"),
-    "desconto_produto": ("desconto_produto", "eq"),
-    "ativo_produto": ("ativo_produto", "eq")
+USUARIOS_FILTER_CONFIG: Dict[str, Tuple[str, str]] = {
+    "id_usuario": ("id_usuario", "eq"),
+    "nome_usuario": ("nome_usuario", "contains"),
+    "genero_usuario": ("genero_usuario", "eq"),
+    "cpf_usuario": ("cpf_usuario", "eq")
 }
 
-PRODUTOS_NON_FILTER_FIELDS: Set[str] = {"limit", "offset", "sort_by", "order_by", "preco_produto", "estoque_produto", "imagens", "categorias"}
+USUARIOS_NON_FILTER_FIELDS: Set[str] = {"limit", "offset", "sort_by", "order_by", "telefones", "enderecos"}
 
-@router.get('/', response_model=PaginatedResponse[produtos.ProdutoResponse])
-def get_produtos(
-    query: produtos.ProdutoQuery = produtos.ProdutoQuery.as_query(),
+@router.get('/', response_model=PaginatedResponse[usuarios.UsuarioResponse])
+def get_usuarios(
+    query: usuarios.UsuarioQuery = usuarios.UsuarioQuery.as_query(),
     db: Session = DbSessionDep
 ):
-    stmt = db.query(ProdutosDB)
+    stmt = db.query(UsuariosDB)
     stmt = apply_filters_from_model(
         stmt,
-        ProdutosDB,
+        UsuariosDB,
         query,
-        PRODUTOS_FILTER_CONFIG,
-        PRODUTOS_NON_FILTER_FIELDS
+        USUARIOS_FILTER_CONFIG,
+        USUARIOS_NON_FILTER_FIELDS
     )
     total = stmt.count()
-    resp_value = stmt.order_by(ProdutosDB.id_produto.asc()).offset(query.offset).limit(query.limit).all()
+    resp_value = stmt.order_by(UsuariosDB.id_usuario.asc()).offset(query.offset).limit(query.limit).all()
     return get_pagination_response(query.limit, query.offset, total, resp_value)
 
 @router.post('/')
-def post_produtos(
-    body: Union[List[produtos.ProdutoCreate], produtos.ProdutoCreate],
+def post_usuarios(
+    body: Union[List[usuarios.UsuarioCreate], usuarios.UsuarioCreate],
     db: Session = DbSessionDep
 ):
     if isinstance(body, list):
-        for categoria in body:
-            db.add(ProdutosDB(**categoria.model_dump()))
+        for usuario in body:
+            db.add(UsuariosDB(**usuario.model_dump()))
     else:
-        db.add(ProdutosDB(**body))
+        db.add(UsuariosDB(**body))
     db.commit()
 
-@router.patch('/', response_model=produtos.ProdutoResponse)
+@router.patch('/', response_model=usuarios.UsuarioCreate)
 def patch_categorias(
-    id_categoria: Annotated[int, Query(description="ID do produto que será alterado")],
-    body: produtos.ProdutoUpdate,
+    id_categoria: Annotated[int, Query(description="ID do usuário que será alterado")],
+    body: usuarios.UsuarioCreate,
     db: Session = DbSessionDep
 ):
     dump_class = body.model_dump(exclude_unset=True)
-    stmt = db.get(ProdutosDB, id_categoria)
+    stmt = db.get(UsuariosDB, id_categoria)
     for k, val in dump_class.items():
         if hasattr(stmt, k):
             setattr(stmt, k, val)
@@ -62,9 +61,52 @@ def patch_categorias(
 
 @router.delete('/')
 def delete_categorias(
-    id_categoria: Annotated[int, Query(description="ID do produtos que será deletado")],
+    id_usuario: Annotated[int, Query(description="ID do usuário que será deletado")],
     db: Session = DbSessionDep
 ):
-    stmt = db.get(ProdutosDB, id_categoria)
+    stmt = db.get(UsuariosDB, id_usuario)
     db.delete(stmt)
     db.commit()
+
+@router.post('/{id_usuario}/add-endereco')
+def add_endereco_usuario(
+    id_usuario: Annotated[int, Path(description="ID do usuário que terá o endereço")],
+    body: enderecos.EnderecoCreate,
+    db: Session = DbSessionDep
+):
+    stmt = EnderecosDB(id_usuario_fk = id_usuario, **body.model_dump())
+    db.add(stmt)
+    db.commit()
+
+@router.post('/{id_usuario}/add-telefone')
+def add_telefones_usuario(
+    id_usuario: Annotated[int, Path(description="ID do usuário que terá o endereço")],
+    body: telefones.TelefoneCreate,
+    db: Session = DbSessionDep
+):
+    stmt = TelefonesDB(id_usuario_fk = id_usuario, **body.model_dump())
+    db.add(stmt)
+    db.commit()
+
+@router.post('/login', response_model=usuarios.UsuarioResponse|bool)
+def verify_login(
+    body: usuarios.UsuarioVerify,
+    db: Session = DbSessionDep
+):
+    stmt = db.query(UsuariosDB).filter(UsuariosDB.email_usuario == body.email_usuario)
+    db_usuario = stmt.first()
+    if db_usuario is not None and verify_hash(body.senha_usuario, db_usuario.senha_usuario):
+        return db_usuario
+    else:
+        return False
+    
+@router.post('/admin', response_model=usuarios.UsuarioResponse|bool)
+def verify_admin(
+    body: usuarios.UsuarioVerify,
+    db: Session = DbSessionDep
+):
+    user_login = verify_login(body, db)
+    if user_login and user_login.admin_usuario:
+        return user_login
+    else:
+        return False

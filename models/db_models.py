@@ -18,14 +18,14 @@ class ProdutosDB(Base):
     id_produto: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     descritivo_produto: Mapped[str] = mapped_column(String(300))
     descricao_produto: Mapped[str] = mapped_column(String(2000))
-    preco_produto: Mapped[DECIMAL] = mapped_column(DECIMAL(precision=2))
+    preco_produto: Mapped[DECIMAL] = mapped_column(DECIMAL(scale=10, precision=2))
     desconto_produto: Mapped[int] = mapped_column()
     estoque_produto: Mapped[int] = mapped_column()
     ativo_produto: Mapped[bool] = mapped_column(default=True)
     
     imagens: Mapped[List["ImagensDB"]] = relationship("ImagensDB", back_populates="produto")
     
-    categorias: Mapped["CategoriasDB"] = relationship(secondary="em_categoria", back_populates="produtos")
+    categorias: Mapped[List["CategoriasDB"]] = relationship("CategoriasDB", secondary="em_categoria", back_populates="produtos", )
     
     @validates("imagens")
     def convert(self, _, value) -> "ImagensDB":
@@ -104,11 +104,26 @@ class UsuariosDB(Base):
     
     id_usuario: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     nome_usuario: Mapped[int] = mapped_column(String(200))
+    email_usuario: Mapped[str] = mapped_column(String(200))
+    senha_usuario: Mapped[str] = mapped_column(String(1000))
     genero_usuario: Mapped[GeneroEnum] = mapped_column(Enum(GeneroEnum))
     cpf_usuario: Mapped[str] = mapped_column(String(11))
+    admin_usuario: Mapped[bool] = mapped_column(default=False)
     
-    telefones: Mapped["TelefonesDB"] = relationship()
-    enderecos: Mapped["EnderecosDB"] = relationship()
+    telefones: Mapped[List["TelefonesDB"]] = relationship()
+    enderecos: Mapped[List["EnderecosDB"]] = relationship()
+
+    @validates("telefones")
+    def convert(self, _, value) -> "TelefonesDB":
+        if value and isinstance(value, dict):
+            return TelefonesDB(**value)
+        return value
+    
+    @validates("enderecos")
+    def convert(self, _, value) -> "EnderecosDB":
+        if value and isinstance(value, dict):
+            return EnderecosDB(**value)
+        return value
     
 class TelefonesDB(Base):
     __tablename__ = "telefones"
@@ -122,6 +137,7 @@ class EnderecosDB(Base):
     
     id_endereco: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
     id_usuario_fk: Mapped[int] = mapped_column(ForeignKey("usuarios.id_usuario"))
+    cep_endereco: Mapped[str] = mapped_column(String(8))
     numero_endereco: Mapped[str] = mapped_column(String(10))
     rua_endereco: Mapped[str] = mapped_column(String(1000))
     bairro_endereco: Mapped[str] = mapped_column(String(1000))
@@ -140,6 +156,7 @@ class EnderecosDB(Base):
 class TiposPagamentoEnum(enum.StrEnum):
     PIX = enum.auto()
     TRANSF_BANC = enum.auto()
+    NENHUM = enum.auto()
 
 class PedidosDB(Base):
     __tablename__ = "pedidos"
@@ -151,7 +168,7 @@ class PedidosDB(Base):
     data_finalizacao_pedido: Mapped[Optional[datetime.datetime]] = mapped_column()
     tipo_pagamento: Mapped[Optional[TiposPagamentoEnum]] = mapped_column(Enum(TiposPagamentoEnum))
     
-    produtos: Mapped[ProdutosDB] = relationship(secondary="em_pedido")
+    produtos_em_pedido: Mapped[List["EmPedidoDB"]] = relationship()
     
 class EmPedidoDB(Base):
     __tablename__ = "em_pedido"
