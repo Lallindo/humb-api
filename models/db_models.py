@@ -23,6 +23,7 @@ class ProdutosDB(Base):
     estoque_produto: Mapped[int] = mapped_column()
     ativo_produto: Mapped[bool] = mapped_column(default=True)
     
+    em_pedidos: Mapped[List["EmPedidoDB"]] = relationship(back_populates="produto")
     imagens: Mapped[List["ImagensDB"]] = relationship("ImagensDB", back_populates="produto")
     
     categorias: Mapped[List["CategoriasDB"]] = relationship("CategoriasDB", secondary="em_categoria", back_populates="produtos", )
@@ -196,5 +197,6 @@ class EmPedidoDB(Base):
     quant_produto_em_pedido: Mapped[int] = mapped_column()
 
     pedido: Mapped["PedidosDB"] = relationship(back_populates="produtos_em_pedido")
+    produto: Mapped["ProdutosDB"] = relationship(back_populates="em_pedidos")
 
 # -- Fim Pedidos -- #
